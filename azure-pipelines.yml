@@ -2,7 +2,7 @@ trigger:
   branches:
     include:
       - main
- 
+
 variables:
   acrName: 'filestreamingcontainerregistry'                           # ACR name without .azurecr.io
   acrLoginServer: 'filestreamingcontainerregistry.azurecr.io'        # ACR login server
@@ -10,7 +10,7 @@ variables:
   buildVersion: '$(Build.BuildId)'          # Versioned tag
   dockerComposeFile: 'docker-compose.yml'   # Compose file used on the VM
   containerRegistry: 'AzureRM'                # Azure Container Registry service connection name
- 
+
 stages:
 - stage: Build
   displayName: 'Build and Push Docker Image'
@@ -30,7 +30,7 @@ stages:
               $(buildVersion)
               latest
           displayName: 'Build and Push Docker Image'
- 
+
         - task: Docker@2
           inputs:
             command: tag
@@ -40,49 +40,3 @@ stages:
               latest
             containerRegistry: $(containerRegistry)
           displayName: 'Tag Docker Image'
- 
-        - task: CopyFilesOverSSH@0
-          inputs:
-            sourcePath: '$(dockerComposeFile)'
-            contents: |
-              $(dockerComposeFile)
-            targetPath: '/home/$(Agent.UserName)'
-            sshEndpoint: 'Temp-Docker-Host'
-          displayName: 'Copy docker-compose.yml to Deployment Server'
- 
-- stage: Deploy
-  displayName: 'Deploy to VM with docker-compose'
-  dependsOn: Build
-  condition: succeeded()
-  jobs:
-    - deployment: DeployToVM
-      environment:
-        name: Temp-Docker-Host            # Azure DevOps environment with registered VM
-        resourceType: VirtualMachine
-      strategy:
-        runOnce:
-          deploy:
-            steps:
-              - task: CopyFilesOverSSH@0
-                inputs:
-                  sourcePath: '$(dockerComposeFile)'
-                  contents: |
-                    $(dockerComposeFile)
-                  targetPath: '/home/$(Agent.UserName)'
-                  sshEndpoint: 'Temp-Docker-Host'
-                displayName: 'Copy docker-compose.yml to VM'
- 
-              - script: |
-                  echo "Replacing image tag in docker-compose.yml..."
-                  sed -i 's|$(acrLoginServer)/$(imageName):latest|$(acrLoginServer)/$(imageName):$(buildVersion)|' $(dockerComposeFile)
-                displayName: 'Update docker-compose.yml with build version'
- 
-              - script: |
-                  docker login $(acrLoginServer) -u $(ACR_USERNAME) -p $(ACR_PASSWORD)
-                  docker-compose -f $(dockerComposeFile) down
-                  docker-compose -f $(dockerComposeFile) pull
-                  docker-compose -f $(dockerComposeFile) up -d
-                displayName: 'Run docker-compose on VM'
-                env:
-                  ACR_USERNAME: $(ACR_USERNAME)
-                  ACR_PASSWORD: $(ACR_PASSWORD)
