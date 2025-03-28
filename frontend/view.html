@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple HTML Page</title>
+</head>
+<body>
+    <h2>Available Videos</h2>
+    <select id="videoSelect">
+      <option value="">Select a video</option>
+    </select>
+    <video id="videoPlayer" controls width="600" style="display: none;">
+      <source id="videoSource" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+    <div id="videoControls" style="display: none;">
+      <button id="backwardButton">⏪ Backward 10s</button>
+      <button id="forwardButton">⏩ Forward 10s</button>
+    </div>
+    <a href="index.html">Upload Files</a>
+  
+    <script>
+      document.addEventListener('DOMContentLoaded', async () => {
+        const response = await fetch('http://localhost:3000/videos');
+        const videos = await response.json();
+        const videoSelect = document.getElementById('videoSelect');
+    
+        videos.forEach(video => {
+          const option = document.createElement('option');
+          option.value = video;
+          option.textContent = video;
+          videoSelect.appendChild(option);
+        });
+    
+        videoSelect.addEventListener('change', () => {
+          const selectedVideo = videoSelect.value;
+          if (selectedVideo) {
+            const videoPlayer = document.getElementById('videoPlayer');
+            const videoSource = document.getElementById('videoSource');
+            const videoControls = document.getElementById('videoControls');
+    
+            // Set video source
+            videoSource.src = `http://localhost:3000/videos/${selectedVideo}`;
+            
+            // Remove poster as it's no longer needed
+            videoPlayer.poster = '';
+    
+            videoPlayer.style.display = 'block';
+            videoControls.style.display = 'block';
+            videoPlayer.load();
+          }
+        });
+
+        document.getElementById('backwardButton').addEventListener('click', () => {
+          const videoPlayer = document.getElementById('videoPlayer');
+          videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime - 10);
+        });
+
+        document.getElementById('forwardButton').addEventListener('click', () => {
+          const videoPlayer = document.getElementById('videoPlayer');
+          videoPlayer.currentTime = Math.min(videoPlayer.duration, videoPlayer.currentTime + 10);
+        });
+      });
+    </script>
+</body>
+</html>
