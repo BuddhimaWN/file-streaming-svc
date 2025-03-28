@@ -8,7 +8,6 @@ variables:
   acrLoginServer: 'filestreamingcontainerregistry.azurecr.io'        # ACR login server
   imageName: 'filestreamingapp'               # Docker image name
   buildVersion: '$(Build.BuildId)'          # Versioned tag
-  dockerComposeFile: 'docker-compose.yml'   # Compose file used on the VM
   containerRegistry: 'AzureRM'                # Azure Container Registry service connection name
 
 stages:
