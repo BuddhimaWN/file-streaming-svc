@@ -47,7 +47,7 @@ stages:
             contents: |
               $(dockerComposeFile)
             targetPath: '/home/$(Agent.UserName)'
-            sshEndpoint: 'file-streaming-vm-v3'
+            sshEndpoint: 'file-streaming-vm-v4'
           displayName: 'Copy docker-compose.yml to Deployment Server'
  
 - stage: Deploy
@@ -57,7 +57,7 @@ stages:
   jobs:
     - deployment: DeployToVM
       environment:
-        name: file-streaming-vm-v3            # Azure DevOps environment with registered VM
+        name: file-streaming-vm-v4            # Azure DevOps environment with registered VM
         resourceType: VirtualMachine
       strategy:
         runOnce:
@@ -69,7 +69,7 @@ stages:
                   contents: |
                     $(dockerComposeFile)
                   targetPath: '/home/$(Agent.UserName)'
-                  sshEndpoint: 'file-streaming-vm-v3'
+                  sshEndpoint: 'file-streaming-vm-v4'
                 displayName: 'Copy docker-compose.yml to VM'
  
               - script: |
