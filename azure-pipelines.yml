@@ -1,0 +1,92 @@
+trigger:
+- main  # Adjust branch name as needed
+
+pool:
+  vmImage: 'ubuntu-latest'  # Use Microsoft-hosted agent
+
+variables:
+  ACR_NAME: 'filestreamingcontainerregistry'  # Change this to your ACR name
+  IMAGE_NAME: 'filestreamingapp'  # Change this to your app name
+  TAG: 'latest'  # Change if needed
+
+stages:
+- stage: BuildAndPush
+  displayName: 'Build and Push Docker Image'
+  jobs:
+  - job: BuildAndPushJob
+    displayName: 'Build and Push'
+    steps:
+
+    # Ensure the repository files are downloaded
+    - checkout: self  
+
+    # Debugging: List all files in the working directory
+    - script: |
+        echo "Listing all files in $(Build.SourcesDirectory)"
+        ls -R $(Build.SourcesDirectory)
+      displayName: 'Debug - List All Files'
+
+    - task: AzureCLI@2
+      displayName: 'Login to Azure'
+      inputs:
+        azureSubscription: 'RM'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az acr login --name $(ACR_NAME)
+
+    - task: Docker@2
+      displayName: 'Build Docker Image'
+      inputs:
+        command: 'build'
+        Dockerfile: '**/Dockerfile'
+        repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
+        tags: '$(TAG)'
+
+    - task: Docker@2
+      displayName: 'Push Docker Image to ACR'
+      inputs:
+        command: 'push'
+        repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
+        tags: '$(TAG)'
+
+    - task: SSH@0
+      displayName: 'Copy docker-compose.yml to Azure VM'
+      inputs:
+        sshEndpoint: 'file-streaming-vm-v4'  # Define your SSH service connection in Azure DevOps
+        runOptions: 'inline'
+        inline: |
+          echo "Current working directory: $(pwd)"
+          echo "Checking if docker-compose.yml exists before SCP..."
+          # ls -l $(Build.SourcesDirectory)/docker-compose.yml || { echo "File not found!"; exit 1; }
+
+          # Use SCP with correct path
+          # scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
+
+- stage: DeployToVM
+  displayName: 'Deploy Docker Image to VM'
+  jobs:
+  - job: DeployJob
+    displayName: 'Deploy Docker Image'
+    steps:
+    
+    - task: SSH@0
+      displayName: 'SSH into Azure VM and Pull Docker Image'
+      inputs:
+        sshEndpoint: 'file-streaming-vm-v4'  # Define your SSH service connection in Azure DevOps
+        runOptions: 'inline'
+        inline: |
+          # Login to Azure Container Registry
+          echo "Logging into ACR"
+          az acr login --name $(ACR_NAME)
+          
+          # Pull the latest image from ACR
+          echo "Pulling the Docker image"
+          docker pull $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
+
+          # Run the Docker container
+          echo "Running Docker container"
+          docker run -d --name $(IMAGE_NAME) $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
+
+          # Optionally, clean up previous containers if needed
+          # docker rm -f $(IMAGE_NAME)
