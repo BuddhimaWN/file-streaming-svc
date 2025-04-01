@@ -58,11 +58,10 @@ stages:
         inline: |
           echo "Current working directory: $(pwd)"
           echo "Checking if docker-compose.yml exists before SCP..."
-          ls -l
           # ls -l $(Build.SourcesDirectory)/docker-compose.yml || { echo "File not found!"; exit 1; }
 
           # Use SCP with correct path
-          scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
+          # scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
 
 - stage: DeployToVM
   displayName: 'Deploy Docker Image to VM'
@@ -77,12 +76,17 @@ stages:
         sshEndpoint: 'file-streaming-vm-v4'  # Define your SSH service connection in Azure DevOps
         runOptions: 'inline'
         inline: |
-          echo "Current working directory: $(pwd)"
-          echo "Logging into Azure..."
-          az login --identity  # Using managed identity for Azure VM (if applicable)
-          echo "Logging into ACR..."
-          az acr login --name $(ACR_NAME)  # ACR_NAME should be your registry name
-          echo "Pulling Docker image..."
+          # Login to Azure Container Registry
+          echo "Logging into ACR"
+          az acr login --name $(ACR_NAME)
+          
+          # Pull the latest image from ACR
+          echo "Pulling the Docker image"
           docker pull $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
-          echo "Running Docker container..."
-          docker run -d $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
+
+          # Run the Docker container
+          echo "Running Docker container"
+          docker run -d --name $(IMAGE_NAME) $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
+
+          # Optionally, clean up previous containers if needed
+          # docker rm -f $(IMAGE_NAME)
