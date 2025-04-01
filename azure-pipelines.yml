@@ -57,8 +57,8 @@ stages:
         runOptions: 'inline'
         inline: |
           echo "Current working directory: $(pwd)"
-          echo "Checking if docker-compose.yml exists..."
-          ls -l /home/vsts/work/1/s/docker-compose.yml  # Debugging step
-          
-          # Use absolute path to ensure SCP works
-          scp /home/vsts/work/1/s/docker-compose.yml user@vm-ip:/remote/destination/path
+          echo "Checking if docker-compose.yml exists before SCP..."
+          ls -l $(Build.SourcesDirectory)/docker-compose.yml || { echo "File not found!"; exit 1; }
+
+          # Use SCP with correct path
+          scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
