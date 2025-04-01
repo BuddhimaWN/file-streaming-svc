@@ -23,6 +23,7 @@ stages:
     # Debugging: List all files in the working directory
     - script: |
         echo "Listing all files in $(Build.SourcesDirectory)"
+        ls -l
         ls -R $(Build.SourcesDirectory)
       displayName: 'Debug - List All Files'
 
