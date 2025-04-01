@@ -29,7 +29,7 @@ stages:
             tags: |
               $(buildVersion)
               latest
-          displayName: 'Build and Push Docker Image'
+          displayName: 'Build and Push Docker ACR service'
  
         - task: Docker@2
           inputs:
