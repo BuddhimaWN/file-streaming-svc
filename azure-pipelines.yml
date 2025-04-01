@@ -1,88 +1,42 @@
 trigger:
-  branches:
-    include:
-      - main
- 
+- main  # Adjust branch name as needed
+
+pool:
+  vmImage: 'ubuntu-latest'  # Use Microsoft-hosted agent
+
 variables:
-  acrName: 'filestreamingcontainerregistry'                           # ACR name without .azurecr.io
-  acrLoginServer: 'filestreamingcontainerregistry.azurecr.io'        # ACR login server
-  imageName: 'filestreamingapp'               # Docker image name
-  buildVersion: '$(Build.BuildId)'          # Versioned tag
-  dockerComposeFile: 'docker-compose.yml'   # Compose file used on the VM
-  containerRegistry: 'filestreamingcontainerregistry'                # Azure Container Registry service connection name
- 
+  ACR_NAME: 'filestreamingcontainerregistry'  # Change this to your ACR name
+  IMAGE_NAME: 'filestreamingapp'  # Change this to your app name
+  TAG: 'latest'  # Change if needed
+
 stages:
-- stage: Build
+- stage: BuildAndPush
   displayName: 'Build and Push Docker Image'
   jobs:
-    - job: Build1
-      displayName: 'Build and Push'
-      pool:
-        vmImage: 'ubuntu-latest'
-      steps:
-        - task: Docker@2
-          inputs:
-            command: buildAndPush
-            repository: $(acrLoginServer)/$(imageName)
-            dockerfile: '$(Build.SourcesDirectory)/Dockerfile'
-            containerRegistry: $(containerRegistry)
-            tags: |
-              $(buildVersion)
-              latest
-          displayName: 'Build and Push Docker ACR service'
- 
-        - task: Docker@2
-          inputs:
-            command: tag
-            repository: $(acrLoginServer)/$(imageName)
-            tags: |
-              $(buildVersion)
-              latest
-            containerRegistry: $(containerRegistry)
-          displayName: 'Tag Docker Image'
- 
-        - task: CopyFilesOverSSH@0
-          inputs:
-            sourcePath: '$(dockerComposeFile)'
-            contents: |
-              $(dockerComposeFile)
-            targetPath: '/home/$(Agent.UserName)'
-            sshEndpoint: 'file-streaming-vm-v4'
-          displayName: 'Copy docker-compose.yml to Deployment Server'
- 
-- stage: Deploy
-  displayName: 'Deploy to VM with docker-compose'
-  dependsOn: Build
-  condition: succeeded()
-  jobs:
-    - deployment: DeployToVM
-      environment:
-        name: file-streaming-vm-v4            # Azure DevOps environment with registered VM
-        resourceType: VirtualMachine
-      strategy:
-        runOnce:
-          deploy:
-            steps:
-              - task: CopyFilesOverSSH@0
-                inputs:
-                  sourcePath: '$(dockerComposeFile)'
-                  contents: |
-                    $(dockerComposeFile)
-                  targetPath: '/home/$(Agent.UserName)'
-                  sshEndpoint: 'file-streaming-vm-v4'
-                displayName: 'Copy docker-compose.yml to VM'
- 
-              - script: |
-                  echo "Replacing image tag in docker-compose.yml..."
-                  sed -i 's|$(acrLoginServer)/$(imageName):latest|$(acrLoginServer)/$(imageName):$(buildVersion)|' $(dockerComposeFile)
-                displayName: 'Update docker-compose.yml with build version'
- 
-              - script: |
-                  docker login $(acrLoginServer) -u $(ACR_USERNAME) -p $(ACR_PASSWORD)
-                  docker-compose -f $(dockerComposeFile) down
-                  docker-compose -f $(dockerComposeFile) pull
-                  docker-compose -f $(dockerComposeFile) up -d
-                displayName: 'Run docker-compose on VM'
-                env:
-                  ACR_USERNAME: $(ACR_USERNAME)
-                  ACR_PASSWORD: $(ACR_PASSWORD)
+  - job: BuildAndPushJob
+    displayName: 'Build and Push'
+    steps:
+    
+    - task: AzureCLI@2
+      displayName: 'Login to Azure'
+      inputs:
+        azureSubscription: 'RM'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az acr login --name $(ACR_NAME)
+
+    - task: Docker@2
+      displayName: 'Build Docker Image'
+      inputs:
+        command: 'build'
+        Dockerfile: '**/Dockerfile'
+        repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
+        tags: '$(TAG)'
+
+    - task: Docker@2
+      displayName: 'Push Docker Image to ACR'
+      inputs:
+        command: 'push'
+        repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
+        tags: '$(TAG)'
