@@ -58,10 +58,10 @@ stages:
         inline: |
           echo "Current working directory: $(pwd)"
           echo "Checking if docker-compose.yml exists before SCP..."
-          # ls -l $(Build.SourcesDirectory)/docker-compose.yml || { echo "File not found!"; exit 1; }
+          ls -l $(Build.SourcesDirectory)/docker-compose.yml || { echo "File not found!"; exit 1; }
 
           # Use SCP with correct path
-          # scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
+          scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
 
 - stage: DeployToVM
   displayName: 'Deploy Docker Image to VM'
