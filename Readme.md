@@ -16,3 +16,5 @@ kubectl port-forward svc/backend-service 3000:3000
 kubectl port-forward svc/frontend-service 3001:3001
 
 http://localhost:3001/
+
+check pipeline
