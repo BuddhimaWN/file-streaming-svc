@@ -47,5 +47,6 @@ stages:
         sshEndpoint: 'file-streaming-vm-v4'  # Define your SSH service connection in Azure DevOps
         runOptions: 'inline'
         inline: |
-          # Define the source file path and destination path
+          echo "Checking if docker-compose.yml exists in $(Build.SourcesDirectory)"
+          ls -l $(Build.SourcesDirectory)/docker-compose.yml  # Debugging step
           scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
