@@ -9,7 +9,7 @@ variables:
   imageName: 'filestreamingapp'               # Docker image name
   buildVersion: '$(Build.BuildId)'          # Versioned tag
   dockerComposeFile: 'docker-compose.yml'   # Compose file used on the VM
-  containerRegistry: 'filestreaming'                # Azure Container Registry service connection name
+  containerRegistry: 'filestreamingcontainerregistry'                # Azure Container Registry service connection name
  
 stages:
 - stage: Build
