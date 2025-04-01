@@ -76,17 +76,12 @@ stages:
         sshEndpoint: 'file-streaming-vm-v4'  # Define your SSH service connection in Azure DevOps
         runOptions: 'inline'
         inline: |
-          # Login to Azure Container Registry
-          echo "Logging into ACR"
-          az acr login --name $(ACR_NAME)
-          
-          # Pull the latest image from ACR
-          echo "Pulling the Docker image"
+          echo "Current working directory: $(pwd)"
+          echo "Logging into Azure..."
+          az login --identity  # Using managed identity for Azure VM (if applicable)
+          echo "Logging into ACR..."
+          az acr login --name $(ACR_NAME)  # ACR_NAME should be your registry name
+          echo "Pulling Docker image..."
           docker pull $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
-
-          # Run the Docker container
-          echo "Running Docker container"
-          docker run -d --name $(IMAGE_NAME) $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
-
-          # Optionally, clean up previous containers if needed
-          # docker rm -f $(IMAGE_NAME)
+          echo "Running Docker container..."
+          docker run -d $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
