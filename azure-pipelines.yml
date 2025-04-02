@@ -19,8 +19,7 @@ stages:
     displayName: 'Build and Push'
     steps:
 
-    # Ensure the repository files are downloaded
-    - checkout: self  
+    - checkout: self  # Ensure the repository files are downloaded
 
     - task: AzureCLI@2
       displayName: 'Login to Azure'
@@ -63,7 +62,7 @@ stages:
           az login --service-principal -u $(SP_APP_ID) -p $(SP_PASSWORD) --tenant $(TENANT_ID) || { echo "Azure CLI authentication failed!"; exit 1; }
 
     - task: SSH@0
-      displayName: 'Clean Up Existing Containers'
+      displayName: 'Clean Up Existing Containers and Free Port 3000'
       inputs:
         sshEndpoint: 'file-streaming-vm-v4'
         runOptions: 'inline'
@@ -79,15 +78,17 @@ stages:
           fi
 
           echo "Checking if port 3000 is in use..."
-          if sudo lsof -i:3000 -t; then
-            echo "Port 3000 is in use. Freeing it..."
-            sudo fuser -k 3000/tcp
+          PORT_PID=$(sudo lsof -i:3000 -t)
+          if [ ! -z "$PORT_PID" ]; then
+            echo "Port 3000 is occupied by process $PORT_PID. Killing it..."
+            sudo kill -9 $PORT_PID
+            echo "Port 3000 is now free."
           else
-            echo "Port 3000 is free."
+            echo "Port 3000 is already free."
           fi
 
     - task: SSH@0
-      displayName: 'Pull and Run Docker Image'
+      displayName: 'Pull and Run Docker Image on Port 3000'
       inputs:
         sshEndpoint: 'file-streaming-vm-v4'
         runOptions: 'inline'
@@ -98,15 +99,7 @@ stages:
           echo "Pulling Docker image..."
           docker pull $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG) || { echo "Failed to pull Docker image!"; exit 1; }
 
-          echo "Checking if port 3000 is available..."
-          if sudo lsof -i:3000 -t; then
-            echo "Port 3000 is occupied. Assigning a different port..."
-            HOST_PORT=3001
-          else
-            HOST_PORT=3000
-          fi
+          echo "Running Docker container on port 3000..."
+          docker run -d -p 3000:3000 --name $(IMAGE_NAME) $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG) || { echo "Failed to run Docker container!"; exit 1; }
 
-          echo "Running Docker container on port $HOST_PORT..."
-          docker run -d -p $HOST_PORT:3000 --name $(IMAGE_NAME) $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG) || { echo "Failed to run Docker container!"; exit 1; }
-
-          echo "Container successfully started on port $HOST_PORT."
+          echo "Container successfully started on port 3000."
