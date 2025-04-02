@@ -23,7 +23,6 @@ stages:
     # Debugging: List all files in the working directory
     - script: |
         echo "Listing all files in $(Build.SourcesDirectory)"
-        ls -l
         ls -R $(Build.SourcesDirectory)
       displayName: 'Debug - List All Files'
 
@@ -59,18 +58,10 @@ stages:
         inline: |
           echo "Current working directory: $(pwd)"
           echo "Checking if docker-compose.yml exists before SCP..."
+          # ls -l $(Build.SourcesDirectory)/docker-compose.yml || { echo "File not found!"; exit 1; }
 
-          echo "===== Listing files in the current directory ====="
-          ls -l
-
-          echo "===== Listing all files recursively in $(Build.SourcesDirectory) ====="
-          ls -R $(Build.SourcesDirectory)
-
-          echo "===== Check file exsist in $(Build.SourcesDirectory) ====="
-          ls -l $(Build.SourcesDirectory)/docker-compose.yml || { echo "File not found!"; exit 1; }
-
-          Use SCP with correct path
-          scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
+          # Use SCP with correct path
+          # scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
 
 - stage: DeployToVM
   displayName: 'Deploy Docker Image to VM'
