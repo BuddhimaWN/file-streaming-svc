@@ -1,14 +1,16 @@
 trigger:
 - main  # Adjust branch name as needed
-
+ 
 pool:
   vmImage: 'ubuntu-latest'  # Use Microsoft-hosted agent
-
+ 
 variables:
   ACR_NAME: 'filestreamingcontainerregistry'  # Change this to your ACR name
   IMAGE_NAME: 'filestreamingapp'  # Change this to your app name
   TAG: 'latest'  # Change if needed
-
+  DEPLOYMENT_FOLDER: '/opt/deployment'  # Folder where deployment files will be placed
+  VM_IP: '$(VM_IP)'  # This should be set in Azure DevOps pipeline variables
+ 
 stages:
 - stage: BuildAndPush
   displayName: 'Build and Push Docker Image'
@@ -16,17 +18,24 @@ stages:
   - job: BuildAndPushJob
     displayName: 'Build and Push'
     steps:
-
+ 
     # Ensure the repository files are downloaded
     - checkout: self  
-
+ 
     # Debugging: List all files in the working directory
     - script: |
+        echo "Full working directory path:"
+        pwd
+ 
         echo "Listing all files in $(Build.SourcesDirectory)"
-        ls -l
         ls -R $(Build.SourcesDirectory)
+ 
+        echo "ls alh"
+        ls -alh .
+ 
+ 
       displayName: 'Debug - List All Files'
-
+ 
     - task: AzureCLI@2
       displayName: 'Login to Azure'
       inputs:
@@ -35,7 +44,7 @@ stages:
         scriptLocation: 'inlineScript'
         inlineScript: |
           az acr login --name $(ACR_NAME)
-
+ 
     - task: Docker@2
       displayName: 'Build Docker Image'
       inputs:
@@ -43,59 +52,144 @@ stages:
         Dockerfile: '**/Dockerfile'
         repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
         tags: '$(TAG)'
-
+ 
     - task: Docker@2
       displayName: 'Push Docker Image to ACR'
       inputs:
         command: 'push'
         repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
         tags: '$(TAG)'
-
-    - task: SSH@0
-      displayName: 'Copy docker-compose.yml to Azure VM'
+ 
+    # Create artifacts directory and copy only docker-compose.yml
+    - script: |
+        mkdir -p $(Build.ArtifactStagingDirectory)/deployment
+        cp docker-compose.yml $(Build.ArtifactStagingDirectory)/deployment/
+      displayName: 'Prepare Docker Compose File'
+ 
+    # Publish only the docker-compose.yml as an artifact
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish Docker Compose File'
       inputs:
-        sshEndpoint: 'file-streaming-vm-v4'  # Define your SSH service connection in Azure DevOps
-        runOptions: 'inline'
-        inline: |
-          echo "Current working directory: $(pwd)"
-          echo "Checking if docker-compose.yml exists before SCP..."
-
-          echo "===== Listing files in the current directory ====="
-          ls -l
-
-          echo "===== Listing all files recursively in $(Build.SourcesDirectory) ====="
-          ls -R $(Build.SourcesDirectory)
-
-          echo "===== Check file exsist in $(Build.SourcesDirectory) ====="
-          ls -l $(Build.SourcesDirectory)/docker-compose.yml || { echo "File not found!"; exit 1; }
-
-          Use SCP with correct path
-          scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
-
+        targetPath: '$(Build.ArtifactStagingDirectory)/deployment/docker-compose.yml'
+        artifact: 'docker-compose'
+        publishLocation: 'pipeline'
+ 
 - stage: DeployToVM
   displayName: 'Deploy Docker Image to VM'
   jobs:
   - job: DeployJob
     displayName: 'Deploy Docker Image'
     steps:
-    
-    - task: SSH@0
-      displayName: 'SSH into Azure VM and Pull Docker Image'
+   
+    # Download only the docker-compose.yml artifact
+    - script: |
+        echo "Current directory before download:"
+        pwd
+        echo "Contents of Pipeline.Workspace before download:"
+        ls -la $(Pipeline.Workspace)
+      displayName: 'Debug - Before Download'
+ 
+    - task: DownloadPipelineArtifact@2
+      displayName: 'Download Docker Compose File'
       inputs:
-        sshEndpoint: 'file-streaming-vm-v4'  # Define your SSH service connection in Azure DevOps
+        artifactName: 'docker-compose'
+        targetPath: '$(Pipeline.Workspace)/docker-compose'
+ 
+    - script: |
+        echo "Current directory after download:"
+        pwd
+        echo "Contents of Pipeline.Workspace after download:"
+        ls -la $(Pipeline.Workspace)
+        echo "Contents of docker-compose directory:"
+        ls -la $(Pipeline.Workspace)/docker-compose
+      displayName: 'Debug - After Download'
+   
+    - task: SSH@0
+      displayName: 'Authenticate Azure CLI'
+      inputs:
+        sshEndpoint: 'file-streaming-vm-v4'
         runOptions: 'inline'
         inline: |
-          # Login to Azure Container Registry
-          echo "Logging into ACR"
-          az acr login --name $(ACR_NAME)
-          
-          # Pull the latest image from ACR
-          echo "Pulling the Docker image"
-          docker pull $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
-
-          # Run the Docker container
-          echo "Running Docker container"
-          docker run -d --name $(IMAGE_NAME) $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
-
-          # Optionally, clean up previous containers if needed
-          # docker rm -f $(IMAGE_NAME)
+          echo "Authenticating Azure CLI..."
+          az login --service-principal -u $(SP_APP_ID) -p $(SP_PASSWORD) --tenant $(TENANT_ID) || { echo "Azure CLI authentication failed!"; exit 1; }
+ 
+    # Create deployment directory and copy only docker-compose.yml
+    - task: SSH@0
+      displayName: 'Setup Deployment Directory'
+      inputs:
+        sshEndpoint: 'file-streaming-vm-v4'
+        runOptions: 'inline'
+        inline: |
+          echo "Creating deployment directory..."
+          sudo mkdir -p $(DEPLOYMENT_FOLDER)
+          sudo chown -R $USER:$USER $(DEPLOYMENT_FOLDER)
+          echo "Deployment directory created and permissions set."
+          echo "Checking deployment directory permissions:"
+          ls -la $(DEPLOYMENT_FOLDER)
+ 
+    # Debug before copy
+    - script: |
+        echo "=== Debug Before Copy ==="
+        echo "Source folder path: $(Pipeline.Workspace)/docker-compose"
+        echo "Checking source folder contents:"
+        ls -la $(Pipeline.Workspace)/docker-compose
+        echo "Checking if docker-compose.yml exists:"
+        ls -la $(Pipeline.Workspace)/docker-compose/docker-compose.yml || echo "File not found!"
+        echo "Target folder path: $(DEPLOYMENT_FOLDER)"
+      displayName: 'Debug - Before Copy'
+ 
+    # Copy docker-compose.yml to VM using scp
+    - task: CopyFilesOverSSH@0
+      displayName: 'Copy Docker Compose File'
+      inputs:
+        sshEndpoint: 'file-streaming-vm-v4'
+        sourceFolder: '$(Pipeline.Workspace)/docker-compose'
+        contents: 'docker-compose.yml'
+        targetFolder: '$(DEPLOYMENT_FOLDER)'
+        cleanTargetFolder: false
+        failOnEmptySource: true
+ 
+    # Debug after copy
+    - task: SSH@0
+      displayName: 'Debug - After Copy'
+      inputs:
+        sshEndpoint: 'file-streaming-vm-v4'
+        runOptions: 'inline'
+        inline: |
+          echo "=== Debug After Copy ==="
+          echo "Checking target directory contents:"
+          ls -la $(DEPLOYMENT_FOLDER)
+          echo "Checking docker-compose.yml file:"
+          ls -la $(DEPLOYMENT_FOLDER)/docker-compose.yml
+          echo "Checking file contents:"
+          cat $(DEPLOYMENT_FOLDER)/docker-compose.yml || echo "Could not read file contents"
+          echo "Checking file permissions:"
+          stat $(DEPLOYMENT_FOLDER)/docker-compose.yml
+ 
+    - task: SSH@0
+      displayName: 'Clean Up Existing Containers'
+      inputs:
+        sshEndpoint: 'file-streaming-vm-v4'
+        runOptions: 'inline'
+        inline: |
+          echo "Stopping and removing existing container if it exists..."
+          if [ "$(docker ps -aq -f name=$(IMAGE_NAME))" ]; then
+            docker rm -f $(IMAGE_NAME)
+            echo "Existing container removed."
+          else
+            echo "No existing container to remove."
+          fi
+ 
+    - task: SSH@0
+      displayName: 'Pull and Run Docker Image'
+      inputs:
+        sshEndpoint: 'file-streaming-vm-v4'
+        runOptions: 'inline'
+        inline: |
+          echo "Logging into ACR..."
+          az acr login --name $(ACR_NAME) || { echo "Failed to log into ACR!"; exit 1; }
+          echo "Pulling Docker image..."
+          docker pull $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG) || { echo "Failed to pull Docker image!"; exit 1; }
+          echo "Running Docker container..."
+          cd $(DEPLOYMENT_FOLDER)
+          docker-compose up -d || { echo "Failed to run Docker container!"; exit 1; }
