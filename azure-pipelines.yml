@@ -1,14 +1,14 @@
 trigger:
-- main  # Adjust branch name as needed
+- main  # Adjust as needed
 
 pool:
-  vmImage: 'ubuntu-latest'  # Use Microsoft-hosted agent
+  vmImage: 'ubuntu-latest'
 
 variables:
-  ACR_NAME: 'filestreamingcontainerregistry'  # Change this to your ACR name
-  IMAGE_NAME: 'filestreamingapp'  # Change this to your app name
-  TAG: 'latest'  # Change if needed
-  VM_IP: '$(VM_IP)'  # This should be set in Azure DevOps pipeline variables
+  ACR_NAME: 'filestreamingcontainerregistry'
+  IMAGE_NAME: 'filestreamingapp'
+  TAG: 'latest'
+  VM_IP: '$(VM_IP)'  # Ensure this variable is set in Azure DevOps
 
 stages:
 - stage: BuildAndPush
@@ -18,7 +18,6 @@ stages:
     displayName: 'Build and Push'
     steps:
 
-    # Ensure the repository files are downloaded
     - checkout: self  
 
     - task: AzureCLI@2
@@ -72,8 +71,8 @@ stages:
           
           if [ ! -z "$EXISTING_CONTAINER" ]; then
             echo "Stopping and removing existing container..."
-            docker stop $EXISTING_CONTAINER || true  # Stops the container if running
-            docker rm $EXISTING_CONTAINER || true   # Removes the container
+            docker stop $EXISTING_CONTAINER || true
+            docker rm $EXISTING_CONTAINER || true
             echo "Container removed successfully."
           else
             echo "No existing container found."
@@ -88,6 +87,18 @@ stages:
           else
             echo "Port 3000 is already free."
           fi
+
+          echo "Checking if any Docker container is using port 3000..."
+          DOCKER_PORT_3000=$(docker ps -q --filter "publish=3000")
+          if [ ! -z "$DOCKER_PORT_3000" ]; then
+            echo "A container is using port 3000. Stopping and removing it..."
+            docker stop $DOCKER_PORT_3000 || true
+            docker rm $DOCKER_PORT_3000 || true
+          fi
+
+          echo "Ensuring Docker networking is clear..."
+          sudo systemctl restart docker
+          echo "Docker service restarted."
 
     - task: SSH@0
       displayName: 'Pull and Run Docker Image on Port 3000'
