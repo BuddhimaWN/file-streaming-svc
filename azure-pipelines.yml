@@ -66,21 +66,11 @@ stages:
           echo "===== Listing all files recursively in $(Build.SourcesDirectory) ====="
           ls -R $(Build.SourcesDirectory)
 
-          # Adjust path to docker-compose.yml if necessary
-          if [ -f "$(Build.SourcesDirectory)/docker-compose.yml" ]; then
-            echo "docker-compose.yml found in $(Build.SourcesDirectory)"
-            scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
-          else
-            echo "docker-compose.yml not found in $(Build.SourcesDirectory). Checking alternative paths..."
-            # Add alternative paths if needed
-            if [ -f "$(Build.SourcesDirectory)/path/to/docker-compose.yml" ]; then
-              echo "docker-compose.yml found in alternative path"
-              scp $(Build.SourcesDirectory)/path/to/docker-compose.yml user@vm-ip:/remote/destination/path
-            else
-              echo "Error: docker-compose.yml not found!"
-              exit 1
-            fi
-          fi
+          echo "===== Check file exsist in $(Build.SourcesDirectory) ====="
+          ls -l $(Build.SourcesDirectory)/docker-compose.yml || { echo "File not found!"; exit 1; }
+
+          Use SCP with correct path
+          scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
 
 - stage: DeployToVM
   displayName: 'Deploy Docker Image to VM'
