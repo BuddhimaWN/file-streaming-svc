@@ -86,7 +86,12 @@ stages:
         runOptions: 'inline'
         inline: |
           echo "Stopping and removing existing container if it exists..."
-          docker rm -f $(IMAGE_NAME) || echo "No existing container to remove."
+          if [ "$(docker ps -aq -f name=$(IMAGE_NAME))" ]; then
+            docker rm -f $(IMAGE_NAME)
+            echo "Existing container removed."
+          else
+            echo "No existing container to remove."
+          fi
 
     - task: SSH@0
       displayName: 'Pull and Run Docker Image'
