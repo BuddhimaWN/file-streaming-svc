@@ -28,6 +28,9 @@ stages:
         echo "Listing all files in $(Build.SourcesDirectory)"
         ls -R $(Build.SourcesDirectory)
 
+        echo "ls pwd"
+        ls -alh $(pwd)
+
 
       displayName: 'Debug - List All Files'
 
@@ -67,6 +70,9 @@ stages:
 
           echo "Listing all files in $(Build.SourcesDirectory)"
           ls -R $(Build.SourcesDirectory)
+
+          echo "ls pwd"
+          ls -alh $(pwd)
 
           echo "Checking if docker-compose.yml exists before SCP..."
           ls -l $(Build.SourcesDirectory)/docker-compose.yml || { echo "File not found!"; exit 1; }
