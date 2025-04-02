@@ -23,7 +23,7 @@ stages:
     # Debugging: List all files in the working directory
     - script: |
         echo "Listing all files in $(Build.SourcesDirectory)"
-        ls -l
+        ls -l $(Build.SourcesDirectory)
         ls -R $(Build.SourcesDirectory)
       displayName: 'Debug - List All Files'
 
@@ -51,26 +51,12 @@ stages:
         repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
         tags: '$(TAG)'
 
-    - task: SSH@0
-      displayName: 'Copy docker-compose.yml to Azure VM'
+    # Save docker-compose.yml as an artifact
+    - task: PublishBuildArtifacts@1
+      displayName: 'Save docker-compose.yml as artifact'
       inputs:
-        sshEndpoint: 'file-streaming-vm-v4'  # Define your SSH service connection in Azure DevOps
-        runOptions: 'inline'
-        inline: |
-          echo "Current working directory: $(pwd)"
-          echo "Checking if docker-compose.yml exists before SCP..."
-
-          echo "===== Listing files in the current directory ====="
-          ls -l
-
-          echo "===== Listing all files recursively in $(Build.SourcesDirectory) ====="
-          ls -R $(Build.SourcesDirectory)
-
-          echo "===== Check file exsist in $(Build.SourcesDirectory) ====="
-          ls -l $(Build.SourcesDirectory)/docker-compose.yml || { echo "File not found!"; exit 1; }
-
-          Use SCP with correct path
-          scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
+        pathToPublish: '$(Build.SourcesDirectory)/docker-compose.yml'
+        artifactName: 'docker-compose'
 
 - stage: DeployToVM
   displayName: 'Deploy Docker Image to VM'
@@ -79,10 +65,36 @@ stages:
     displayName: 'Deploy Docker Image'
     steps:
     
+    # Download the artifact before copying it to the VM
+    - task: DownloadBuildArtifacts@0
+      displayName: 'Download docker-compose.yml artifact'
+      inputs:
+        artifactName: 'docker-compose'
+        downloadPath: '$(Build.SourcesDirectory)'
+
+    - task: SSH@0
+      displayName: 'Copy docker-compose.yml to Azure VM'
+      inputs:
+        sshEndpoint: 'file-streaming-vm-v4'
+        runOptions: 'inline'
+        inline: |
+          echo "Current working directory: $(pwd)"
+          echo "Listing files before SCP..."
+          ls -l $(Build.SourcesDirectory)
+
+          # Verify file existence before SCP
+          if [ -f "$(Build.SourcesDirectory)/docker-compose.yml" ]; then
+            echo "docker-compose.yml found, proceeding with SCP..."
+            scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
+          else
+            echo "Error: docker-compose.yml not found!"
+            exit 1
+          fi
+
     - task: SSH@0
       displayName: 'SSH into Azure VM and Pull Docker Image'
       inputs:
-        sshEndpoint: 'file-streaming-vm-v4'  # Define your SSH service connection in Azure DevOps
+        sshEndpoint: 'file-streaming-vm-v4'
         runOptions: 'inline'
         inline: |
           # Login to Azure Container Registry
@@ -93,9 +105,12 @@ stages:
           echo "Pulling the Docker image"
           docker pull $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
 
+          # Stop and remove the previous container (if it exists)
+          echo "Removing existing container (if exists)..."
+          docker rm -f $(IMAGE_NAME) || true
+
           # Run the Docker container
           echo "Running Docker container"
           docker run -d --name $(IMAGE_NAME) $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
 
-          # Optionally, clean up previous containers if needed
-          # docker rm -f $(IMAGE_NAME)
+          echo "Deployment completed!"
