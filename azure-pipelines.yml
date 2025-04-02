@@ -75,7 +75,7 @@ stages:
       inputs:
         sshEndpoint: 'file-streaming-vm-v4'
         runOptions: 'inline'
-        inline: |
+        inline: | 
           echo "Authenticating Azure CLI..."
           az login --service-principal -u $(SP_APP_ID) -p $(SP_PASSWORD) --tenant $(TENANT_ID) || { echo "Azure CLI authentication failed!"; exit 1; }
 
