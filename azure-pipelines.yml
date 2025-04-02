@@ -1,14 +1,15 @@
 trigger:
 - main  # Adjust branch name as needed
-
+ 
 pool:
   vmImage: 'ubuntu-latest'  # Use Microsoft-hosted agent
-
+ 
 variables:
   ACR_NAME: 'filestreamingcontainerregistry'  # Change this to your ACR name
   IMAGE_NAME: 'filestreamingapp'  # Change this to your app name
   TAG: 'latest'  # Change if needed
-
+  DEPLOYMENT_FOLDER: '/opt/deployment'  # Folder where deployment files will be placed
+ 
 stages:
 - stage: BuildAndPush
   displayName: 'Build and Push Docker Image'
@@ -16,24 +17,24 @@ stages:
   - job: BuildAndPushJob
     displayName: 'Build and Push'
     steps:
-
+ 
     # Ensure the repository files are downloaded
     - checkout: self  
-
+ 
     # Debugging: List all files in the working directory
     - script: |
         echo "Full working directory path:"
         pwd
-
+ 
         echo "Listing all files in $(Build.SourcesDirectory)"
         ls -R $(Build.SourcesDirectory)
-
+ 
         echo "ls alh"
         ls -alh .
-
-
+ 
+ 
       displayName: 'Debug - List All Files'
-
+ 
     - task: AzureCLI@2
       displayName: 'Login to Azure'
       inputs:
@@ -42,7 +43,7 @@ stages:
         scriptLocation: 'inlineScript'
         inlineScript: |
           az acr login --name $(ACR_NAME)
-
+ 
     - task: Docker@2
       displayName: 'Build Docker Image'
       inputs:
@@ -50,52 +51,64 @@ stages:
         Dockerfile: '**/Dockerfile'
         repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
         tags: '$(TAG)'
-
+ 
     - task: Docker@2
       displayName: 'Push Docker Image to ACR'
       inputs:
         command: 'push'
         repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
         tags: '$(TAG)'
-
-    - task: SSH@0
-      displayName: 'Copy docker-compose.yml to Azure VM'
+ 
+    # Create artifacts directory and copy only docker-compose.yml
+    - script: |
+        mkdir -p $(Build.ArtifactStagingDirectory)/deployment
+        cp docker-compose.yml $(Build.ArtifactStagingDirectory)/deployment/
+      displayName: 'Prepare Docker Compose File'
+ 
+    # Publish only the docker-compose.yml as an artifact
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish Docker Compose File'
       inputs:
-        sshEndpoint: 'file-streaming-vm-v4'  # Define your SSH service connection in Azure DevOps
-        runOptions: 'inline'
-        inline: |
-
-          echo "Full working directory path:"
-          pwd
-
-          echo "Listing all files in $(Build.SourcesDirectory)"
-          ls -R $(Build.SourcesDirectory)
-
-          # echo "ls alh"
-          # ls -alh .
-
-          # echo "Checking if docker-compose.yml exists before SCP..."
-          # ls -l $(Build.SourcesDirectory)/docker-compose.yml || { echo "File not found!"; exit 1; }
-
-          # Use SCP with correct path
-          # scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
-
+        targetPath: '$(Build.ArtifactStagingDirectory)/deployment/docker-compose.yml'
+        artifact: 'docker-compose'
+        publishLocation: 'pipeline'
+ 
 - stage: DeployToVM
   displayName: 'Deploy Docker Image to VM'
   jobs:
   - job: DeployJob
     displayName: 'Deploy Docker Image'
     steps:
-    
+   
+    # Download only the docker-compose.yml artifact
+    - task: DownloadPipelineArtifact@2
+      displayName: 'Download Docker Compose File'
+      inputs:
+        artifactName: 'docker-compose'
+        targetPath: '$(Pipeline.Workspace)/docker-compose'
+   
     - task: SSH@0
       displayName: 'Authenticate Azure CLI'
       inputs:
         sshEndpoint: 'file-streaming-vm-v4'
         runOptions: 'inline'
-        inline: | 
+        inline: |
           echo "Authenticating Azure CLI..."
           az login --service-principal -u $(SP_APP_ID) -p $(SP_PASSWORD) --tenant $(TENANT_ID) || { echo "Azure CLI authentication failed!"; exit 1; }
-
+ 
+    # Create deployment directory and copy only docker-compose.yml
+    - task: SSH@0
+      displayName: 'Setup Deployment Directory'
+      inputs:
+        sshEndpoint: 'file-streaming-vm-v4'
+        runOptions: 'inline'
+        inline: |
+          echo "Creating deployment directory..."
+          sudo mkdir -p $(DEPLOYMENT_FOLDER)
+          sudo chown -R $USER:$USER $(DEPLOYMENT_FOLDER)
+          echo "Copying docker-compose.yml..."
+          scp $(Pipeline.Workspace)/docker-compose/docker-compose.yml $USER@$(VM_IP):$(DEPLOYMENT_FOLDER)/
+ 
     - task: SSH@0
       displayName: 'Clean Up Existing Containers'
       inputs:
@@ -109,7 +122,7 @@ stages:
           else
             echo "No existing container to remove."
           fi
-
+ 
     - task: SSH@0
       displayName: 'Pull and Run Docker Image'
       inputs:
@@ -121,4 +134,5 @@ stages:
           echo "Pulling Docker image..."
           docker pull $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG) || { echo "Failed to pull Docker image!"; exit 1; }
           echo "Running Docker container..."
-          docker run -d --name $(IMAGE_NAME) $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG) || { echo "Failed to run Docker container!"; exit 1; }
+          cd $(DEPLOYMENT_FOLDER)
+          docker-compose up -d || { echo "Failed to run Docker container!"; exit 1; }
