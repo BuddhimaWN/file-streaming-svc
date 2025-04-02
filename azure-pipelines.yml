@@ -71,22 +71,32 @@ stages:
     steps:
     
     - task: SSH@0
-      displayName: 'SSH into Azure VM and Pull Docker Image'
+      displayName: 'Authenticate Azure CLI'
       inputs:
-        sshEndpoint: 'file-streaming-vm-v4'  # Define your SSH service connection in Azure DevOps
+        sshEndpoint: 'file-streaming-vm-v4'
         runOptions: 'inline'
         inline: |
-          # Login to Azure Container Registry
-          echo "Logging into ACR"
-          az acr login --name $(ACR_NAME)
-          
-          # Pull the latest image from ACR
-          echo "Pulling the Docker image"
-          docker pull $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
+          echo "Authenticating Azure CLI..."
+          az login --service-principal -u $(SP_APP_ID) -p $(SP_PASSWORD) --tenant $(TENANT_ID) || { echo "Azure CLI authentication failed!"; exit 1; }
 
-          # Run the Docker container
-          echo "Running Docker container"
-          docker run -d --name $(IMAGE_NAME) $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
+    - task: SSH@0
+      displayName: 'Clean Up Existing Containers'
+      inputs:
+        sshEndpoint: 'file-streaming-vm-v4'
+        runOptions: 'inline'
+        inline: |
+          echo "Stopping and removing existing container if it exists..."
+          docker rm -f $(IMAGE_NAME) || echo "No existing container to remove."
 
-          # Optionally, clean up previous containers if needed
-          # docker rm -f $(IMAGE_NAME)
+    - task: SSH@0
+      displayName: 'Pull and Run Docker Image'
+      inputs:
+        sshEndpoint: 'file-streaming-vm-v4'
+        runOptions: 'inline'
+        inline: |
+          echo "Logging into ACR..."
+          az acr login --name $(ACR_NAME) || { echo "Failed to log into ACR!"; exit 1; }
+          echo "Pulling Docker image..."
+          docker pull $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG) || { echo "Failed to pull Docker image!"; exit 1; }
+          echo "Running Docker container..."
+          docker run -d --name $(IMAGE_NAME) $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG) || { echo "Failed to run Docker container!"; exit 1; }
