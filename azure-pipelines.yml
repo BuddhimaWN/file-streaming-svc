@@ -59,7 +59,14 @@ stages:
         inline: |
           echo "Current working directory: $(pwd)"
           echo "Checking if docker-compose.yml exists before SCP..."
+
+          echo "===== Listing files in the current directory ====="
           ls -l
+
+          echo "===== Listing all files recursively in $(Build.SourcesDirectory) ====="
+          ls -R $(Build.SourcesDirectory)
+
+          echo "===== Check file exsist in $(Build.SourcesDirectory) ====="
           ls -l $(Build.SourcesDirectory)/docker-compose.yml || { echo "File not found!"; exit 1; }
 
           Use SCP with correct path
