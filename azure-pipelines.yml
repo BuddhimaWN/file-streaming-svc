@@ -23,7 +23,7 @@ stages:
     # Debugging: List all files in the working directory
     - script: |
         echo "Listing all files in $(Build.SourcesDirectory)"
-        ls -l $(Build.SourcesDirectory)
+        ls -l
         ls -R $(Build.SourcesDirectory)
       displayName: 'Debug - List All Files'
 
@@ -51,12 +51,36 @@ stages:
         repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
         tags: '$(TAG)'
 
-    # Save docker-compose.yml as an artifact
-    - task: PublishBuildArtifacts@1
-      displayName: 'Save docker-compose.yml as artifact'
+    - task: SSH@0
+      displayName: 'Copy docker-compose.yml to Azure VM'
       inputs:
-        pathToPublish: '$(Build.SourcesDirectory)/docker-compose.yml'
-        artifactName: 'docker-compose'
+        sshEndpoint: 'file-streaming-vm-v4'  # Define your SSH service connection in Azure DevOps
+        runOptions: 'inline'
+        inline: |
+          echo "Current working directory: $(pwd)"
+          echo "Checking if docker-compose.yml exists before SCP..."
+
+          echo "===== Listing files in the current directory ====="
+          ls -l
+
+          echo "===== Listing all files recursively in $(Build.SourcesDirectory) ====="
+          ls -R $(Build.SourcesDirectory)
+
+          # Adjust path to docker-compose.yml if necessary
+          if [ -f "$(Build.SourcesDirectory)/docker-compose.yml" ]; then
+            echo "docker-compose.yml found in $(Build.SourcesDirectory)"
+            scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
+          else
+            echo "docker-compose.yml not found in $(Build.SourcesDirectory). Checking alternative paths..."
+            # Add alternative paths if needed
+            if [ -f "$(Build.SourcesDirectory)/path/to/docker-compose.yml" ]; then
+              echo "docker-compose.yml found in alternative path"
+              scp $(Build.SourcesDirectory)/path/to/docker-compose.yml user@vm-ip:/remote/destination/path
+            else
+              echo "Error: docker-compose.yml not found!"
+              exit 1
+            fi
+          fi
 
 - stage: DeployToVM
   displayName: 'Deploy Docker Image to VM'
@@ -65,36 +89,10 @@ stages:
     displayName: 'Deploy Docker Image'
     steps:
     
-    # Download the artifact before copying it to the VM
-    - task: DownloadBuildArtifacts@0
-      displayName: 'Download docker-compose.yml artifact'
-      inputs:
-        artifactName: 'docker-compose'
-        downloadPath: '$(Build.SourcesDirectory)'
-
-    - task: SSH@0
-      displayName: 'Copy docker-compose.yml to Azure VM'
-      inputs:
-        sshEndpoint: 'file-streaming-vm-v4'
-        runOptions: 'inline'
-        inline: |
-          echo "Current working directory: $(pwd)"
-          echo "Listing files before SCP..."
-          ls -l $(Build.SourcesDirectory)
-
-          # Verify file existence before SCP
-          if [ -f "$(Build.SourcesDirectory)/docker-compose.yml" ]; then
-            echo "docker-compose.yml found, proceeding with SCP..."
-            scp $(Build.SourcesDirectory)/docker-compose.yml user@vm-ip:/remote/destination/path
-          else
-            echo "Error: docker-compose.yml not found!"
-            exit 1
-          fi
-
     - task: SSH@0
       displayName: 'SSH into Azure VM and Pull Docker Image'
       inputs:
-        sshEndpoint: 'file-streaming-vm-v4'
+        sshEndpoint: 'file-streaming-vm-v4'  # Define your SSH service connection in Azure DevOps
         runOptions: 'inline'
         inline: |
           # Login to Azure Container Registry
@@ -105,12 +103,9 @@ stages:
           echo "Pulling the Docker image"
           docker pull $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
 
-          # Stop and remove the previous container (if it exists)
-          echo "Removing existing container (if exists)..."
-          docker rm -f $(IMAGE_NAME) || true
-
           # Run the Docker container
           echo "Running Docker container"
           docker run -d --name $(IMAGE_NAME) $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
 
-          echo "Deployment completed!"
+          # Optionally, clean up previous containers if needed
+          # docker rm -f $(IMAGE_NAME)
