@@ -9,6 +9,7 @@ variables:
   IMAGE_NAME: 'filestreamingapp'  # Change this to your app name
   TAG: 'latest'  # Change if needed
   DEPLOYMENT_FOLDER: '/opt/deployment'  # Folder where deployment files will be placed
+  VM_IP: '$(VM_IP)'  # This should be set in Azure DevOps pipeline variables
  
 stages:
 - stage: BuildAndPush
@@ -107,7 +108,13 @@ stages:
           sudo mkdir -p $(DEPLOYMENT_FOLDER)
           sudo chown -R $USER:$USER $(DEPLOYMENT_FOLDER)
           echo "Copying docker-compose.yml..."
-          scp $(Pipeline.Workspace)/docker-compose/docker-compose.yml $USER@$(VM_IP):$(DEPLOYMENT_FOLDER)/
+          # Debug: List contents of the workspace
+          echo "Contents of $(Pipeline.Workspace):"
+          ls -la $(Pipeline.Workspace)
+          echo "Contents of docker-compose directory:"
+          ls -la $(Pipeline.Workspace)/docker-compose
+          # Copy the file
+          cp $(Pipeline.Workspace)/docker-compose/docker-compose.yml $(DEPLOYMENT_FOLDER)/
  
     - task: SSH@0
       displayName: 'Clean Up Existing Containers'
