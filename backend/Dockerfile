@@ -1,5 +1,5 @@
 # Use the custom image from ACR
-FROM filestreamingcontainerregistry.azurecr.io/filestreamingapp:latest
+FROM node:16
 
 # Install FFmpeg
 RUN apt-get update && apt-get install -y ffmpeg
