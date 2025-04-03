@@ -22,7 +22,7 @@
   
     <script>
       document.addEventListener('DOMContentLoaded', async () => {
-        const response = await fetch('http://localhost:3000/videos');
+        const response = await fetch('http://20.195.15.210:3000/videos');
         const videos = await response.json();
         const videoSelect = document.getElementById('videoSelect');
     
@@ -41,7 +41,7 @@
             const videoControls = document.getElementById('videoControls');
     
             // Set video source
-            videoSource.src = `http://localhost:3000/videos/${selectedVideo}`;
+            videoSource.src = `http://20.195.15.210:3000/videos/${selectedVideo}`;
             
             // Remove poster as it's no longer needed
             videoPlayer.poster = '';

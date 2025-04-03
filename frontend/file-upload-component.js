@@ -104,7 +104,7 @@ class FileUploadComponent extends HTMLElement {
   }
 
   async initFileUploader() {
-    const response = await fetch('http://localhost:3000/config');
+    const response = await fetch('http://20.195.15.210:3000/config');
     const config = await response.json();
 
     this.fileUploader = new Resumable(config);
@@ -169,7 +169,7 @@ class FileUploadComponent extends HTMLElement {
 
   async checkAndMerge(file) {
     try {
-      const response = await fetch('http://localhost:3000/merge', {
+      const response = await fetch('http://20.195.15.210:3000/merge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -203,7 +203,7 @@ class FileUploadComponent extends HTMLElement {
 
   async checkCompressionStatus(file) {
     try {
-      const response = await fetch(`http://localhost:3000/compression-status?filename=${file.fileName}`);
+      const response = await fetch(`http://20.195.15.210:3000/compression-status?filename=${file.fileName}`);
       const data = await response.json();
       if (response.ok && data.compressionComplete) {
         this.updateFileStatus(file, 'Compression Complete!', 'success');
