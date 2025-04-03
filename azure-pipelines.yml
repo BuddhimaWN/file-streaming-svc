@@ -196,4 +196,4 @@ stages:
           echo "Change path..."
           cd $(DEPLOYMENT_FOLDER)
           echo "Deploying"
-          docker-compose up -d || { echo "Failed to run Docker container!"; exit 1; }
+          docker-compose up -d || { echo "Failed to run Docker container!"; docker-compose logs; exit 1; }
