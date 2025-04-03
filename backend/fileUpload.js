@@ -167,7 +167,7 @@ class FileUpload {
 
   getResumableConfig(req, res) {
     res.json({
-      target: 'http://localhost:3000/upload',
+      target: 'http://20.195.15.210:3000/upload',
       fileTypes: ['*'],
       maxFileSize: MAX_FILE_SIZE,
       chunkSize: CHUNK_SIZE,
