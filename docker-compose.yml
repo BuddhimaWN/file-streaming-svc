@@ -8,15 +8,6 @@ services:
     networks:
       - app-network
 
-  frontend:
-    image: filestreamingcontainerregistry.azurecr.io/filestreaming-frontend:latest
-    ports:
-      - "3001:3001"
-    networks:
-      - app-network
-    depends_on:
-      - app
-
 
 networks:
   app-network:
