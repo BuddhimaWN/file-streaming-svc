@@ -115,4 +115,6 @@ stages:
           echo "Running Docker container on port 3000..."
           docker run -d -p 3000:3000 --name $(IMAGE_NAME) $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG) || { echo "Failed to run Docker container!"; exit 1; }
 
-          echo "Container successfully started on port 3000."
+          docker run -d -p 3001:3001 filestreamingcontainerregistry.azurecr.io/filestreaming-frontend:latest
+
+          echo "Container successfully started on port 3001."
