@@ -101,7 +101,7 @@ stages:
           echo "Docker service restarted."
 
     - task: SSH@0
-      displayName: 'Pull and Run Docker Image on Port 3000'
+      displayName: 'Pull and Run Docker Images'
       inputs:
         sshEndpoint: 'file-streaming-vm-v4'
         runOptions: 'inline'
