@@ -194,6 +194,9 @@ stages:
           docker pull $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG) || { echo "Failed to pull Docker image!"; exit 1; }
           echo "Running Docker container..."
           echo "Change path..."
+          echo "pwd"
           cd $(DEPLOYMENT_FOLDER)
+          echo "pwd"
+          pwd
           echo "Deploying"
           docker-compose up -d || { echo "Failed to run Docker container!"; docker-compose logs; exit 1; }
