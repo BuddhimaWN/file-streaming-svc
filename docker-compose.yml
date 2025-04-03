@@ -1,12 +1,9 @@
 version: '3'
 services:
   app:
-    build:
-      context: ./backend
+    image: filestreamingcontainerregistry.azurecr.io/filestreamingapp:latest
     ports:
       - "3000:3000"
-    volumes:
-      - ./backend:/usr/src/app
     networks:
       - app-network
 
