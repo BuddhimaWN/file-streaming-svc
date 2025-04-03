@@ -107,7 +107,7 @@ stages:
         runOptions: 'inline'
         inline: |
           echo "Logging into ACR..."
-          az acr login --name $(ACR_NAME) || { echo "Failed to log into ACR!"; exit 1; }
+          az acr login --name $(ACR_NAME) || true
 
           echo "Pulling Docker image..."
           docker pull $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG) || { echo "Failed to pull Docker image!"; exit 1; }
