@@ -24,6 +24,16 @@ app.get('/videos', (req, res) => {fileUpload.getVideos(req, res)});
 app.get('/compression-status', (req, res) => fileUpload.getCompressionStatus(req, res));
 app.get('/videos/:filename', (req, res) => fileUpload.streamVideo(req, res));
 
+// Serve image
+app.get('/image', (req, res) => {
+  const imagePath = path.join(__dirname, 'laptop.jpg');
+  if (fs.existsSync(imagePath)) {
+    res.sendFile(imagePath);
+  } else {
+    res.status(404).json({ message: 'Image not found' });
+  }
+});
+
 app.listen(port, () => {
   console.log(`🚀 Server listening at http://localhost:${port}`);
 });
